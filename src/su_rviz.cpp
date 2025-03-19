@@ -31,6 +31,9 @@ public:
         //PUBLISHER GROUP
         cf_vel_arrow_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>(
           "/rviz/cf_1/velocity", 10);
+        cf_EE_vel_arrow_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>(
+          "/rviz/cf_1_EE/velocity", 10);
+  
 
         //SUBSCRIBER GROUP
         cf_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -198,7 +201,7 @@ public:
       marker.color.g = 0.0;
       marker.color.b = 0.0;
   
-      cf_vel_arrow_publisher_->publish(marker);
+      cf_EE_vel_arrow_publisher_->publish(marker);
       }
 
 
@@ -228,7 +231,7 @@ public:
     rclcpp::TimerBase::SharedPtr timer_;
 
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr cf_vel_arrow_publisher_;
-
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr cf_EE_vel_arrow_publisher_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;
