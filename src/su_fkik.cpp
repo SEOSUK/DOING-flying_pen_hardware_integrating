@@ -23,7 +23,8 @@ class su_fkik : public rclcpp::Node {
 public:
 su_fkik() : Node("su_fkik"),
     tf_broadcaster_(std::make_shared<tf2_ros::TransformBroadcaster>(this)),
-    body_rpy_meas_dot_filter(3, 10, 0.01) // LPF INIT
+    body_rpy_meas_dot_filter(3, 10, 0.01), // LPF INIT
+    body_omega_dot_filter(3, 10, 0.01) // LPF INIT
    {
 
     EE_offset_d << 0.08, 0, 0;
@@ -37,6 +38,7 @@ su_fkik() : Node("su_fkik"),
         //Publisher GRoup//
         /////////////////////
         global_EE_xyz_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/global_EE_xyz", qos_settings);            
+        global_EE_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/global_EE_xyz_vel", qos_settings);            
 
 
 
@@ -68,9 +70,13 @@ su_fkik() : Node("su_fkik"),
       {
         body_rpy_meas_dot_raw = (body_rpy_meas - body_rpy_meas_prev) / 0.01;
         body_rpy_meas_dot = body_rpy_meas_dot_filter.apply(body_rpy_meas_dot_raw);
-
-
         body_rpy_meas_prev = body_rpy_meas;
+
+        body_omega_dot_raw = (body_omega_meas - body_omega_prev) / 0.01;
+        body_alpha_meas = body_omega_dot_filter.apply(body_omega_dot_raw);
+        body_omega_prev = body_omega_meas;
+
+        
       }
 
 
@@ -99,6 +105,11 @@ su_fkik() : Node("su_fkik"),
         global_EE_xyz_msg.data.push_back(global_EE_xyz_meas[2]);
         global_EE_xyz_publisher_->publish(global_EE_xyz_msg);
 
+        std_msgs::msg::Float64MultiArray global_EE_xyz_vel_msg;
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[0]);
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[1]);
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[2]);
+        global_EE_xyz_vel_publisher_->publish(global_EE_xyz_vel_msg);
 
       }
 
@@ -129,6 +140,7 @@ su_fkik() : Node("su_fkik"),
     void cf_sim_state_calc()
     {
       // 현재로서 각속도 데이터를 direct feedback 받을 수 없으니 일단 수치적으로 각도->각속도 계산함
+      // 시뮬레이션만을 위한 코드임 일단은
       double sin_roll = sin(body_rpy_meas[0]);
       double cos_roll = cos(body_rpy_meas[0]);
 
@@ -163,7 +175,7 @@ su_fkik() : Node("su_fkik"),
 
     void cf_EE_vel_FK() {
       //TODO: global_xyz_vel_meas, body_rpy_meas, angular_velocity 를 조합해서 end effector velocity data를 만들기
-      
+      global_EE_xyz_vel_meas = global_EE_xyz_meas + body_omega_meas.cross(R_B * EE_offset_d);
 
 
     }
@@ -189,6 +201,7 @@ su_fkik() : Node("su_fkik"),
 
 
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_publisher_;
 
 
 
@@ -204,17 +217,28 @@ su_fkik() : Node("su_fkik"),
     Eigen::Vector3d body_rpy_meas_prev;
     Eigen::Vector3d body_rpy_meas_dot_raw;
     Eigen::Vector3d body_rpy_meas_dot;
+
+    Eigen::Vector3d body_rpy_meas_dot_prev;
+    Eigen::Vector3d body_rpy_meas_ddot_raw;
+    Eigen::Vector3d body_rpy_meas_ddot;
+
     Eigen::Matrix3d omega_eulerRate_Mapping_matrix;
     Eigen::Vector3d body_omega_meas;
+    Eigen::Vector3d body_omega_prev;
+    Eigen::Vector3d body_omega_dot_raw;
+    Eigen::Vector3d body_alpha_meas;
+
     Eigen::Vector3d global_rpy_meas;
     Eigen::Vector3d global_xyz_vel_meas;
     Eigen::Vector3d body_xyz_vel_meas;
     Eigen::Matrix3d R_B;
 
     Eigen::Vector3d global_EE_xyz_meas;
+    Eigen::Vector3d global_EE_xyz_vel_meas;
     Eigen::Vector3d EE_offset_d;
 
     FilteredVector body_rpy_meas_dot_filter;
+    FilteredVector body_omega_dot_filter;
 
 };
 

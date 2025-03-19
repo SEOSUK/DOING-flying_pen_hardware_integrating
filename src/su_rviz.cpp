@@ -45,6 +45,10 @@ public:
           "/global_EE_xyz", qos_settings,
           std::bind(&su_rviz::global_EE_xyz_callback, this, std::placeholders::_1));
 
+        global_EE_xyz_vel_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "/global_EE_xyz_vel", qos_settings,
+          std::bind(&su_rviz::global_EE_xyz_vel_callback, this, std::placeholders::_1));
+
 
         timer_ = this->create_wall_timer(
           10ms, std::bind(&su_rviz::visual_timer_callback, this));
@@ -55,12 +59,12 @@ public:
     private:
       void visual_timer_callback()
       {
-        cf_EE_vel_FK_publisher();     //End Effector velocity 시각화
-        cf_EE_position_FK_publisher();   // End Effector postion 시각화
+        cf_EE_pose_FK_tf_publisher();   // End Effector postion 시각화
+        cf_EE_vel_FK_arrow_publisher();
 
 
-        cf_pose_visual_publisher();   //Crazyflie position 시각화
-        cf_vel_visual_publisher();    // crazyflie velocity 시각화
+        cf_pose_tf_publisher();   //Crazyflie position 시각화
+        cf_vel_arrow_publisher();    // crazyflie velocity 시각화
       }
 
 
@@ -88,7 +92,6 @@ public:
     }
 
     void cf_velocity_subscriber(const crazyflie_interfaces::msg::LogDataGeneric::SharedPtr msg) {
-
       body_xyz_vel_meas[0] = msg->values[0];
       body_xyz_vel_meas[1] = msg->values[1];
       body_xyz_vel_meas[2] = msg->values[2];
@@ -97,16 +100,18 @@ public:
     }
 
     void global_EE_xyz_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg){
-
       global_EE_xyz_meas[0] = msg->data[0];
       global_EE_xyz_meas[1] = msg->data[1];
       global_EE_xyz_meas[2] = msg->data[2];
-
-
     }
 
-    void cf_pose_visual_publisher() {
+    void global_EE_xyz_vel_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg){
+      global_EE_xyz_vel_meas[0] = msg->data[0];
+      global_EE_xyz_vel_meas[1] = msg->data[1];
+      global_EE_xyz_vel_meas[2] = msg->data[2];
+    }
 
+    void cf_pose_tf_publisher() {
         geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped.header.stamp = this->now();
         transformStamped.header.frame_id = "world";
@@ -127,8 +132,7 @@ public:
 
     }
 
-    void cf_vel_visual_publisher(){
-      
+    void cf_vel_arrow_publisher(){
     auto marker = visualization_msgs::msg::Marker();
     marker.header.frame_id = "world";
     marker.header.stamp = this->get_clock()->now();
@@ -162,14 +166,43 @@ public:
     cf_vel_arrow_publisher_->publish(marker);
     }
     
-    void cf_EE_vel_FK_publisher()
-    {
-      //TODO: su_fkik에서 연산한 velocity FK 데이터를 rviz에 시각화
+    void cf_EE_vel_FK_arrow_publisher(){
+      
+      auto marker = visualization_msgs::msg::Marker();
+      marker.header.frame_id = "world";
+      marker.header.stamp = this->get_clock()->now();
+      marker.ns = "EE_vel";
+      marker.id = 0;
+      marker.type = visualization_msgs::msg::Marker::ARROW;
+      marker.action = visualization_msgs::msg::Marker::ADD;
+  
+      geometry_msgs::msg::Point start_point, end_point;
+      start_point.x = global_EE_xyz_meas[0]; 
+      start_point.y = global_EE_xyz_meas[1];
+      start_point.z = global_EE_xyz_meas[2];
+  
+      end_point.x = start_point.x + global_EE_xyz_vel_meas[0];
+      end_point.y = start_point.y + global_EE_xyz_vel_meas[1];
+      end_point.z = start_point.z + global_EE_xyz_vel_meas[2];
+  
+      marker.points.push_back(start_point);
+      marker.points.push_back(end_point);
+  
+  
+      marker.scale.x = 0.02; 
+      marker.scale.y = 0.05; 
+      marker.scale.z = 0.05;
+  
+      marker.color.a = 1.0; 
+      marker.color.r = 1.0; 
+      marker.color.g = 0.0;
+      marker.color.b = 0.0;
+  
+      cf_vel_arrow_publisher_->publish(marker);
+      }
 
 
-    }
-
-    void cf_EE_position_FK_publisher()
+    void cf_EE_pose_FK_tf_publisher()
     {
         geometry_msgs::msg::TransformStamped transform_msg;
         transform_msg.header.stamp = this->get_clock()->now();
@@ -200,6 +233,7 @@ public:
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_subscriber_;
 
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -213,6 +247,7 @@ public:
     Eigen::Matrix3d R_B;
 
     Eigen::Vector3d global_EE_xyz_meas;
+    Eigen::Vector3d global_EE_xyz_vel_meas;
 
 };
 
