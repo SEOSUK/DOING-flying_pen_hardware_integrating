@@ -35,21 +35,22 @@ public:
           "/rviz/cf_1_EE/velocity", 10);
   
 
+          
         //SUBSCRIBER GROUP
-        cf_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-          "/cf_1/pose", qos_settings,  // Topic name and QoS depth
+        cf_pose_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "/pen/xyzrpy", qos_settings,  // Topic name and QoS depth
           std::bind(&su_rviz::cf_pose_subscriber, this, std::placeholders::_1));
 
-        cf_vel_subscriber_ = this->create_subscription<crazyflie_interfaces::msg::LogDataGeneric>(
-          "/cf_1/velocity", qos_settings,
+        cf_vel_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "/pen/xyzrpy_vel", qos_settings,
           std::bind(&su_rviz::cf_velocity_subscriber, this, std::placeholders::_1));
   
         global_EE_xyz_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-          "/global_EE_xyz", qos_settings,
+          "/pen/EE_xyzrpy", qos_settings,
           std::bind(&su_rviz::global_EE_xyz_callback, this, std::placeholders::_1));
 
         global_EE_xyz_vel_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-          "/global_EE_xyz_vel", qos_settings,
+          "/pen/EE_xyzrpy_vel", qos_settings,
           std::bind(&su_rviz::global_EE_xyz_vel_callback, this, std::placeholders::_1));
 
 
@@ -71,47 +72,61 @@ public:
       }
 
 
-    void cf_pose_subscriber(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+    void cf_pose_subscriber(const std_msgs::msg::Float64MultiArray::SharedPtr msg)
     {
-      global_xyz_meas[0] = msg->pose.position.x;
-      global_xyz_meas[1] = msg->pose.position.y;
-      global_xyz_meas[2] = msg->pose.position.z;
+      global_xyz_meas[0] = msg->data[0];
+      global_xyz_meas[1] = msg->data[1];
+      global_xyz_meas[2] = msg->data[2];
 
-      tf2::Quaternion quat(
-          msg->pose.orientation.x,
-          msg->pose.orientation.y,
-          msg->pose.orientation.z,
-          msg->pose.orientation.w);
+      body_rpy_meas[0] = msg->data[3];
+      body_rpy_meas[1] = msg->data[4];
+      body_rpy_meas[2] = msg->data[5];
 
-      tf2::Matrix3x3 mat(quat);
-      mat.getRPY(body_rpy_meas[0], body_rpy_meas[1], body_rpy_meas[2]);
+      //body rpy meas 0 1 2 를 기반으로 R_B 생성
+      Eigen::Matrix3d Rz, Ry, Rx;
 
-      for (int i = 0; i < 3; ++i) {
-          for (int j = 0; j < 3; ++j) {
-              R_B(i, j) = mat[i][j];
-          }
-      } // R_B matrix: 회전행렬, body frame에서 global frame으로 변환함
-
+      Rz << cos(body_rpy_meas[2]), -sin(body_rpy_meas[2]), 0,
+            sin(body_rpy_meas[2]),  cos(body_rpy_meas[2]), 0,
+                 0  ,       0  , 1;
+  
+      Ry << cos(body_rpy_meas[1]), 0, sin(body_rpy_meas[1]),
+                   0 , 1,     0,
+           -sin(body_rpy_meas[1]), 0, cos(body_rpy_meas[1]);
+  
+      Rx << 1,      0       ,       0,
+            0, cos(body_rpy_meas[0]), -sin(body_rpy_meas[0]),
+            0, sin(body_rpy_meas[0]),  cos(body_rpy_meas[0]);
+  
+      R_B = Rz * Ry * Rx;
     }
 
-    void cf_velocity_subscriber(const crazyflie_interfaces::msg::LogDataGeneric::SharedPtr msg) {
-      body_xyz_vel_meas[0] = msg->values[0];
-      body_xyz_vel_meas[1] = msg->values[1];
-      body_xyz_vel_meas[2] = msg->values[2];
+    void cf_velocity_subscriber(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
+      global_xyz_vel_meas[0] = msg->data[0];
+      global_xyz_vel_meas[1] = msg->data[1];
+      global_xyz_vel_meas[2] = msg->data[2];
 
-      global_xyz_vel_meas = R_B * body_xyz_vel_meas;
+      body_omega_meas[0] = msg->data[3];
+      body_omega_meas[1] = msg->data[4];
+      body_omega_meas[2] = msg->data[5];
     }
 
     void global_EE_xyz_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg){
       global_EE_xyz_meas[0] = msg->data[0];
       global_EE_xyz_meas[1] = msg->data[1];
       global_EE_xyz_meas[2] = msg->data[2];
+      global_EE_rpy_meas[0] = msg->data[3];
+      global_EE_rpy_meas[1] = msg->data[4];
+      global_EE_rpy_meas[2] = msg->data[5];
     }
 
     void global_EE_xyz_vel_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg){
       global_EE_xyz_vel_meas[0] = msg->data[0];
       global_EE_xyz_vel_meas[1] = msg->data[1];
       global_EE_xyz_vel_meas[2] = msg->data[2];
+
+      body_omega_meas[0] = msg->data[3];
+      body_omega_meas[1] = msg->data[4];
+      body_omega_meas[2] = msg->data[5];
     }
 
     void cf_pose_tf_publisher() {
@@ -126,6 +141,7 @@ public:
 
         tf2::Quaternion quat;
         quat.setRPY(body_rpy_meas[0], body_rpy_meas[1], body_rpy_meas[2]);
+        std::cout << "body_rpy" << body_rpy_meas << std::endl;
         transformStamped.transform.rotation.x = quat.x();
         transformStamped.transform.rotation.y = quat.y();
         transformStamped.transform.rotation.z = quat.z();
@@ -233,8 +249,8 @@ public:
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr cf_vel_arrow_publisher_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr cf_EE_vel_arrow_publisher_;
 
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
-    rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr cf_pose_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr cf_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_subscriber_;
 
@@ -245,11 +261,14 @@ public:
     Eigen::Vector3d global_xyz_meas;
     Eigen::Vector3d body_rpy_meas;
     Eigen::Vector3d global_rpy_meas;
+    Eigen::Vector3d body_omega_meas;
+
     Eigen::Vector3d global_xyz_vel_meas;
     Eigen::Vector3d body_xyz_vel_meas;
     Eigen::Matrix3d R_B;
 
     Eigen::Vector3d global_EE_xyz_meas;
+    Eigen::Vector3d global_EE_rpy_meas;
     Eigen::Vector3d global_EE_xyz_vel_meas;
 
 };
