@@ -48,6 +48,7 @@ su_fkik() : Node("su_fkik"),
         /////////////////////
         //SUBSCIRIBER GRoup//
         /////////////////////
+        // SIMULATOR
         cf_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
           "/cf_1/pose", qos_settings,  // Topic name and QoS depth
           std::bind(&su_fkik::cf_pose_subscriber, this, std::placeholders::_1));
@@ -55,10 +56,15 @@ su_fkik() : Node("su_fkik"),
         cf_vel_subscriber_ = this->create_subscription<crazyflie_interfaces::msg::LogDataGeneric>(
           "/cf_1/velocity", qos_settings,
           std::bind(&su_fkik::cf_velocity_subscriber, this, std::placeholders::_1));
-        // MJ TODO
-        // cf_pose_subscriber_ 및 cf_pose_subscriber를 참고하여 크레이지플라이 real data를 처리하는 subscriber 만들기
-        // 코드 잘 참고하여 global_xyz_meas 및 body_rpy_meas에 크플 데이터 집어넣기.
-        // velocity 데이터 없더라도 수치적으로 각속도 및 선속도 구할 수 있게 수정해놓음
+        // HARDWARE
+        cf_pose_real_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+          "/cf_1/pose", qos_settings,
+          std::bind(&su_fkik::cf_pose_real_subscriber, this, std::placeholders::_1));
+                    
+        cf_vel_real_subscriber_ = this->create_subscription<crazyflie_interfaces::msg::LogDataGeneric>(
+          "/cf_1/velocity", qos_settings,
+          std::bind(&su_fkik::cf_velocity_real_subscriber, this, std::placeholders::_1));
+        //
 
 
           control_loop_timer_ = this->create_wall_timer(
@@ -248,6 +254,51 @@ su_fkik() : Node("su_fkik"),
       global_xyz_vel_meas = R_B * body_xyz_vel_meas;
     }
     
+    void cf_pose_real_subscriber(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+    {
+        global_xyz_meas[0] = msg->pose.position.x;
+        global_xyz_meas[1] = msg->pose.position.y;
+        global_xyz_meas[2] = msg->pose.position.z;
+
+        tf2::Quaternion quat(
+            msg->pose.orientation.x,
+            msg->pose.orientation.y,
+            msg->pose.orientation.z,
+            msg->pose.orientation.w);
+
+        tf2::Matrix3x3 mat(quat);
+        double roll, pitch, yaw;
+        mat.getRPY(roll, pitch, yaw);
+
+        // Yaw 불연속 보정
+        double delta_yaw = yaw - prev_yaw;
+        if (delta_yaw > M_PI) yaw_offset -= 2.0 * M_PI;
+        else if (delta_yaw < -M_PI) yaw_offset += 2.0 * M_PI;
+
+        yaw_continuous = yaw + yaw_offset;
+        prev_yaw = yaw;
+
+        body_rpy_meas[0] = roll;
+        body_rpy_meas[1] = pitch;
+        body_rpy_meas[2] = yaw_continuous;
+
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                R_B(i, j) = mat[i][j];
+    }
+
+    void cf_velocity_real_subscriber(const crazyflie_interfaces::msg::LogDataGeneric::SharedPtr msg)
+    {
+        body_xyz_vel_meas[0] = msg->values[0];
+        body_xyz_vel_meas[1] = msg->values[1];
+        body_xyz_vel_meas[2] = msg->values[2];
+
+        global_xyz_vel_meas = R_B * body_xyz_vel_meas;
+    }
+
+
+
+
     void cf_EE_position_FK() {
       //TODO: global_xyz_meas, body_rpy_meas 를 조합해서 end effector position data를 만들기
       global_EE_xyz_meas = global_xyz_meas + R_B * EE_offset_d;
@@ -290,7 +341,8 @@ su_fkik() : Node("su_fkik"),
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;
-
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_real_subscriber_;
+    rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_real_subscriber_;
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
