@@ -72,6 +72,30 @@ install(TARGETS
 
 target_link_libraries(su_fkik ButterworthFilter)
 
+#SU_POSITION_CTRLER
+add_executable(su_position_ctrler src/su_position_ctrler.cpp src/ButterworthFilter.cpp)
+ament_target_dependencies(su_position_ctrler
+ rclcpp 
+ std_msgs  
+ geometry_msgs 
+ tf2 
+ tf2_ros 
+ visualization_msgs
+ crazyflie_interfaces)
+
+install(TARGETS
+  su_position_ctrler
+  DESTINATION lib/${PROJECT_NAME})
+
+
+ target_include_directories(su_position_ctrler PUBLIC
+ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+ $<INSTALL_INTERFACE:include>
+ ${EIGEN3_INCLUDE_DIR}  # Add Eigen include directory 
+)
+
+target_link_libraries(su_fkik ButterworthFilter)
+
 #butterworth filter
 add_library(ButterworthFilter src/ButterworthFilter.cpp)
 target_include_directories(ButterworthFilter PUBLIC
