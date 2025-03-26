@@ -25,7 +25,7 @@ trajectory_generator()
   {
 
 
-      // QoS 설정
+      // QoS 설정a
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
                                       .durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
