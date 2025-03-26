@@ -44,9 +44,9 @@ su_fkik() : Node("su_fkik"),
         global_EE_xyz_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy", qos_settings);            
         global_EE_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy_vel", qos_settings);            
         
-        global_xyzYaw_publisher_ = this->create_publisher<crazyflie_interfaces::msg::Position>("cf2/cmd_position", 10);
+        cf_global_xyzYaw_publisher_ = this->create_publisher<crazyflie_interfaces::msg::Position>("cf2/cmd_position", 10);
 
-
+        test_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/test", qos_settings);            
         /////////////////////
         //SUBSCIRIBER GRoup//
         /////////////////////
@@ -204,7 +204,20 @@ su_fkik() : Node("su_fkik"),
         global_xyzYaw_cmd_msg.y = global_xyz_cmd[1];
         global_xyzYaw_cmd_msg.z = global_xyz_cmd[2];
         global_xyzYaw_cmd_msg.yaw = global_EE_yaw_cmd;
-        global_xyzYaw_publisher_->publish(global_xyzYaw_cmd_msg);
+        cf_global_xyzYaw_publisher_->publish(global_xyzYaw_cmd_msg);
+
+
+        std_msgs::msg::Float64MultiArray test_msg;
+        test_msg.data.push_back(global_xyz_cmd[0]);
+        test_msg.data.push_back(global_xyz_cmd[1]);
+        test_msg.data.push_back(global_xyz_cmd[2]);
+        test_msg.data.push_back(global_xyz_cmd[3] * M_PI / 180);
+        test_msg.data.push_back(global_xyz_meas[0]);
+        test_msg.data.push_back(global_xyz_meas[1]);
+        test_msg.data.push_back(global_xyz_meas[2]);
+        test_msg.data.push_back(body_rpy_meas[2]);
+        test_publisher_->publish(test_msg);
+
       }
 
 
@@ -334,12 +347,12 @@ su_fkik() : Node("su_fkik"),
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     rclcpp::TimerBase::SharedPtr numerical_calc_timer_;
 
-
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr test_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_vel_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_publisher_;
-    rclcpp::Publisher<crazyflie_interfaces::msg::Position>::SharedPtr global_xyzYaw_publisher_;
+    rclcpp::Publisher<crazyflie_interfaces::msg::Position>::SharedPtr cf_global_xyzYaw_publisher_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;

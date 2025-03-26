@@ -42,7 +42,7 @@ trajectory_generator()
 
       timer_ = this->create_wall_timer(
         10ms, std::bind(&trajectory_generator::timer_callback, this));
-  
+
 
   }
 
@@ -77,8 +77,13 @@ private:
 
   void init_hovering()
   {
-    //TODO: 어제 잘 되던 hovering 코드 복붙사용
 
+    if (time_real < 2) global_cmd_xyzYaw[2] = -0.05;
+    else if (time_real > 2 && time_real < 2.1) global_cmd_xyzYaw[2] = 0.1;
+    else if (time_real > 2.1 && time_real < 2.2) global_cmd_xyzYaw[2] = 0.2;
+    else if (time_real > 2.2 && time_real < 2.3) global_cmd_xyzYaw[2] = 0.3;
+    else if (time_real > 2.3 && time_real < 2.4) global_cmd_xyzYaw[2] = 0.4;
+  
     if (time_real > 4.5 && time_real < 5) RCLCPP_INFO(this->get_logger(), "hovering done. ready to move");
   }
 
