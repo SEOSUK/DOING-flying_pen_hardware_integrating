@@ -14,6 +14,7 @@
 #include "test_pkg/ButterworthFilter.hpp"
 #include "test_pkg/FilteredVector.hpp"
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include "crazyflie_interfaces/msg/position.hpp"
 
 
 using namespace std::chrono_literals;
@@ -28,9 +29,9 @@ su_fkik() : Node("su_fkik"),
     global_xyz_meas_dot_raw_filter(3, 3, 0.03)    
    {
 
-    EE_offset_d << 0.2, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
+    EE_offset_d << 0.08, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
     simulation_Flag = true;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
-
+    inverse_kinematics_Flag = false;
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
                                       .durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
@@ -42,7 +43,8 @@ su_fkik() : Node("su_fkik"),
         global_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/xyzrpy_vel", qos_settings);            
         global_EE_xyz_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy", qos_settings);            
         global_EE_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy_vel", qos_settings);            
-
+        
+        global_xyzYaw_publisher_ = this->create_publisher<crazyflie_interfaces::msg::Position>("cf2/cmd_position", 10);
 
 
         /////////////////////
@@ -50,21 +52,26 @@ su_fkik() : Node("su_fkik"),
         /////////////////////
         // SIMULATOR
         cf_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-          "/cf_1/pose", qos_settings,  // Topic name and QoS depth
+          "/cf2/pose", qos_settings,  // Topic name and QoS depth
           std::bind(&su_fkik::cf_pose_subscriber, this, std::placeholders::_1));
 
         cf_vel_subscriber_ = this->create_subscription<crazyflie_interfaces::msg::LogDataGeneric>(
-          "/cf_1/velocity", qos_settings,
+          "/cf2/velocity", qos_settings,
           std::bind(&su_fkik::cf_velocity_subscriber, this, std::placeholders::_1));
         // HARDWARE
         cf_pose_real_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-          "/cf_1/pose", qos_settings,
+          "/cf2/pose", qos_settings,
           std::bind(&su_fkik::cf_pose_real_subscriber, this, std::placeholders::_1));
                     
         cf_vel_real_subscriber_ = this->create_subscription<crazyflie_interfaces::msg::LogDataGeneric>(
-          "/cf_1/velocity", qos_settings,
+          "/cf2/velocity", qos_settings,
           std::bind(&su_fkik::cf_velocity_real_subscriber, this, std::placeholders::_1));
         //end
+
+
+        global_EE_cmd_xyzYaw_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "/pen/EE_cmd_xyzYaw", qos_settings,
+          std::bind(&su_fkik::global_EE_cmd_xyzYaw_subscriber, this, std::placeholders::_1));
 
 
           control_loop_timer_ = this->create_wall_timer(
@@ -88,8 +95,6 @@ su_fkik() : Node("su_fkik"),
         cf_EE_vel_FK();
         cf_EE_position_FK();
         cf_EE_position_IK();
-        if(simulation_Flag) cf_simulation_cmd_position_publisher();
-        else cf_hardware_cmd_position_publisher();
 
         data_publish();
       }
@@ -194,15 +199,12 @@ su_fkik() : Node("su_fkik"),
         global_EE_xyz_msg.data.push_back(body_rpy_meas[2]);
         global_EE_xyz_publisher_->publish(global_EE_xyz_msg);
 
-        std_msgs::msg::Float64MultiArray global_EE_xyz_vel_msg;
-        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[0]);
-        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[1]);
-        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[2]);
-        global_EE_xyz_vel_msg.data.push_back(body_omega_meas[0]);
-        global_EE_xyz_vel_msg.data.push_back(body_omega_meas[1]);
-        global_EE_xyz_vel_msg.data.push_back(body_omega_meas[2]);
-        global_EE_xyz_vel_publisher_->publish(global_EE_xyz_vel_msg);
-
+        crazyflie_interfaces::msg::Position global_xyzYaw_cmd_msg;
+        global_xyzYaw_cmd_msg.x = global_xyz_cmd[0];
+        global_xyzYaw_cmd_msg.y = global_xyz_cmd[1];
+        global_xyzYaw_cmd_msg.z = global_xyz_cmd[2];
+        global_xyzYaw_cmd_msg.yaw = global_EE_yaw_cmd;
+        global_xyzYaw_publisher_->publish(global_xyzYaw_cmd_msg);
       }
 
 
@@ -296,8 +298,13 @@ su_fkik() : Node("su_fkik"),
         global_xyz_vel_meas = R_B * body_xyz_vel_meas;
     }
 
-
-
+    void global_EE_cmd_xyzYaw_subscriber(const std_msgs::msg::Float64MultiArray::SharedPtr msg)
+    {
+      global_EE_xyz_cmd[0] = msg->data[0];
+      global_EE_xyz_cmd[1] = msg->data[1];
+      global_EE_xyz_cmd[2] = msg->data[2];
+      global_EE_yaw_cmd = msg->data[3];
+    }
 
     void cf_EE_position_FK() {
       //TODO: global_xyz_meas, body_rpy_meas 를 조합해서 end effector position data를 만들기
@@ -315,18 +322,14 @@ su_fkik() : Node("su_fkik"),
 
     void cf_EE_position_IK() {
       //TODO: End Effector poisition, End Effector yaw command를 받아서 drone position, drone yaw command로 변환하기.
-  
-    }
+
+      if (inverse_kinematics_Flag) global_xyz_cmd = global_EE_xyz_cmd - R_B * EE_offset_d;
+      else global_xyz_cmd = global_EE_xyz_cmd;
     
-    void cf_simulation_cmd_position_publisher() {
-      //TODO: crazyflie 시뮬레이션으로 직접 xyz position, yaw command 데이터를 publish 하는 곳.
-
-    }    
-
-    void cf_hardware_cmd_position_publisher() {
-      //TODO: crazyflie 하드웨어쪽으로 직접 xyz position, yaw command input 데이터를 publish 하는 곳.
-
+      RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
+      global_xyz_cmd[0], global_xyz_cmd[1], global_xyz_cmd[2], global_EE_yaw_cmd);
     }
+  
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     rclcpp::TimerBase::SharedPtr numerical_calc_timer_;
@@ -336,13 +339,13 @@ su_fkik() : Node("su_fkik"),
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_vel_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_publisher_;
-
-
+    rclcpp::Publisher<crazyflie_interfaces::msg::Position>::SharedPtr global_xyzYaw_publisher_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_subscriber_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_real_subscriber_;
     rclcpp::Subscription<crazyflie_interfaces::msg::LogDataGeneric>::SharedPtr cf_vel_real_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_cmd_xyzYaw_subscriber_;
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
@@ -374,13 +377,21 @@ su_fkik() : Node("su_fkik"),
     Eigen::Vector3d global_EE_xyz_vel_meas;
     Eigen::Vector3d EE_offset_d;
 
+    Eigen::Vector3d global_EE_xyz_cmd;
+    Eigen::Vector3d global_xyz_cmd;
+    double global_EE_yaw_cmd;
+    double global_yaw_cmd;
+
+
+
     FilteredVector body_rpy_meas_dot_filter;
     FilteredVector body_omega_dot_filter;
     FilteredVector global_xyz_meas_dot_raw_filter;
 
+    
     double prev_yaw, yaw_offset, yaw_continuous;
     bool simulation_Flag;
-
+    bool inverse_kinematics_Flag;
 };
 
 int main(int argc, char * argv[]) {
