@@ -53,6 +53,11 @@ public:
           "/pen/EE_xyzrpy_vel", qos_settings,
           std::bind(&su_rviz::global_EE_xyz_vel_callback, this, std::placeholders::_1));
 
+          global_xyz_cmd_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
+          "/pen/EE_cmd_xyzYaw", qos_settings,
+          std::bind(&su_rviz::global_xyz_cmd_callback, this, std::placeholders::_1));
+
+
 
         timer_ = this->create_wall_timer(
           10ms, std::bind(&su_rviz::visual_timer_callback, this));
@@ -66,6 +71,7 @@ public:
         cf_EE_pose_FK_tf_publisher();   // End Effector postion 시각화
         cf_EE_vel_FK_arrow_publisher();
 
+        cf_xyz_cmd_tf_publisher();   //Crazyflie position 시각화
 
         cf_pose_tf_publisher();   //Crazyflie position 시각화
         cf_vel_arrow_publisher();    // crazyflie velocity 시각화
@@ -129,6 +135,40 @@ public:
       body_omega_meas[2] = msg->data[5];
     }
 
+    void global_xyz_cmd_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg){
+
+      global_xyz_cmd[0] = msg->data[0];
+      global_xyz_cmd[1] = msg->data[1];
+      global_xyz_cmd[2] = msg->data[2];
+      drone_yaw = msg->data[3];
+
+    }
+
+    void cf_xyz_cmd_tf_publisher(){
+      geometry_msgs::msg::TransformStamped transformStamped;
+      transformStamped.header.stamp = this->now();
+      transformStamped.header.frame_id = "world";
+      transformStamped.child_frame_id = "xyzYaw_cmd";
+
+      transformStamped.transform.translation.x = global_xyz_cmd[0];
+      transformStamped.transform.translation.y = global_xyz_cmd[1];
+      transformStamped.transform.translation.z = global_xyz_cmd[2];
+
+      tf2::Quaternion quat;
+      quat.setRPY(0, 0, drone_yaw);
+      transformStamped.transform.rotation.x = quat.x();
+      transformStamped.transform.rotation.y = quat.y();
+      transformStamped.transform.rotation.z = quat.z();
+      transformStamped.transform.rotation.w = quat.w();
+
+      tf_broadcaster_->sendTransform(transformStamped);
+
+
+
+
+    }
+
+
     void cf_pose_tf_publisher() {
         geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped.header.stamp = this->now();
@@ -141,7 +181,6 @@ public:
 
         tf2::Quaternion quat;
         quat.setRPY(body_rpy_meas[0], body_rpy_meas[1], body_rpy_meas[2]);
-        std::cout << "body_rpy" << body_rpy_meas << std::endl;
         transformStamped.transform.rotation.x = quat.x();
         transformStamped.transform.rotation.y = quat.y();
         transformStamped.transform.rotation.z = quat.z();
@@ -253,6 +292,7 @@ public:
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr cf_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_cmd_subscriber_;
 
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -270,7 +310,8 @@ public:
     Eigen::Vector3d global_EE_xyz_meas;
     Eigen::Vector3d global_EE_rpy_meas;
     Eigen::Vector3d global_EE_xyz_vel_meas;
-
+    Eigen::Vector3d global_xyz_cmd;
+    double drone_yaw;
 };
 
 int main(int argc, char * argv[]) {

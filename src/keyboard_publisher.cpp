@@ -6,10 +6,10 @@
 class keyboard_publisher : public rclcpp::Node
 {
 public:
-  keyboard_publisher() : Node("keyboard_publisher")
+  keyboard_publisher() : Node("command_generator")
     {
         // 퍼블리셔 생성
-        publisher_ = this->create_publisher<std_msgs::msg::String>("keyboard_input", 10);
+        publisher_ = this->create_publisher<std_msgs::msg::String>("/keyboard_input", 10);
 
         // ncurses 초기화
         initscr();           // ncurses 화면 초기화

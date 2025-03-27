@@ -55,7 +55,6 @@ private:
     if (time_real < 5) init_hovering(); // 붕 뜨기
     // external wrench observer를 여기에 하는게 나을지 fkik쪽에 넣는게 나을지 보류
     surface_trajectory_generation();
-
     data_publish();
   }
 
@@ -134,12 +133,23 @@ private:
             }
             else if (input_char == 'z')
             {
-              global_cmd_vel_xyzYaw[2] += 0.1;
+              global_cmd_vel_xyzYaw[3] += 0.1;
             }
             else if (input_char == 'c')
             {
-              global_cmd_vel_xyzYaw[2] -= 0.1;
+              global_cmd_vel_xyzYaw[3] -= 0.1;
             }
+            else if (input_char == 'x')
+            {
+              global_cmd_vel_xyzYaw[0] = 0;
+              global_cmd_vel_xyzYaw[1] = 0;
+              global_cmd_vel_xyzYaw[2] = 0;
+              global_cmd_vel_xyzYaw[3] = 0;
+            }            
+            else if (input_char == 'g')
+            {
+              global_cmd_xyzYaw[2] = -1;
+            }            
         }
 
     }
@@ -155,8 +165,8 @@ private:
 
 
   size_t count_;
-  Eigen::VectorXd global_cmd_xyzYaw = Eigen::Vector3d::Zero(4);
-  Eigen::VectorXd global_cmd_vel_xyzYaw = Eigen::Vector3d::Zero(4);
+  Eigen::VectorXd global_cmd_xyzYaw = Eigen::VectorXd::Zero(4);
+  Eigen::VectorXd global_cmd_vel_xyzYaw = Eigen::VectorXd::Zero(4);
 
 
   double time_cnt;

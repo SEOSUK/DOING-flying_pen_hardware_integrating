@@ -25,6 +25,13 @@ def generate_launch_description():
             output='screen'
         ),
 
+        # trajgen 노드 실행
+        Node(
+            package='test_pkg',
+            executable='trajectory_generator',
+            output='screen',
+        ),        
+
         # rviz2 노드 실행
         Node(
             package='rviz2',
@@ -34,5 +41,5 @@ def generate_launch_description():
             arguments=['-d', rviz_config_file],
             parameters=[{'use_sim_time': True}]
         ),
+        
     ])
-

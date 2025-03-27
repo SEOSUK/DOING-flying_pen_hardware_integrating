@@ -29,8 +29,8 @@ su_fkik() : Node("su_fkik"),
     global_xyz_meas_dot_raw_filter(3, 3, 0.03)    
    {
 
-    EE_offset_d << 0.08, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
-    simulation_Flag = true;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
+    EE_offset_d << 0.108, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
+    simulation_Flag = false;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
     inverse_kinematics_Flag = false;
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
@@ -43,8 +43,11 @@ su_fkik() : Node("su_fkik"),
         global_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/xyzrpy_vel", qos_settings);            
         global_EE_xyz_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy", qos_settings);            
         global_EE_xyz_vel_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_xyzrpy_vel", qos_settings);            
+        global_xyz_cmd_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/cmd_xyzYaw", qos_settings);            
         
         cf_global_xyzYaw_publisher_ = this->create_publisher<crazyflie_interfaces::msg::Position>("cf2/cmd_position", 10);
+
+
 
         test_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/test", qos_settings);            
         /////////////////////
@@ -203,7 +206,7 @@ su_fkik() : Node("su_fkik"),
         global_xyzYaw_cmd_msg.x = global_xyz_cmd[0];
         global_xyzYaw_cmd_msg.y = global_xyz_cmd[1];
         global_xyzYaw_cmd_msg.z = global_xyz_cmd[2];
-        global_xyzYaw_cmd_msg.yaw = global_EE_yaw_cmd;
+        global_xyzYaw_cmd_msg.yaw = global_EE_yaw_cmd * 180 / M_PI;
         cf_global_xyzYaw_publisher_->publish(global_xyzYaw_cmd_msg);
 
 
@@ -211,13 +214,29 @@ su_fkik() : Node("su_fkik"),
         test_msg.data.push_back(global_xyz_cmd[0]);
         test_msg.data.push_back(global_xyz_cmd[1]);
         test_msg.data.push_back(global_xyz_cmd[2]);
-        test_msg.data.push_back(global_xyz_cmd[3] * M_PI / 180);
+        test_msg.data.push_back(global_EE_yaw_cmd);
         test_msg.data.push_back(global_xyz_meas[0]);
         test_msg.data.push_back(global_xyz_meas[1]);
         test_msg.data.push_back(global_xyz_meas[2]);
         test_msg.data.push_back(body_rpy_meas[2]);
         test_publisher_->publish(test_msg);
 
+
+
+
+        std_msgs::msg::Float64MultiArray global_EE_xyz_vel_msg;
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[0]);
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[1]);
+        global_EE_xyz_vel_msg.data.push_back(global_EE_xyz_vel_meas[2]);
+        global_EE_xyz_vel_publisher_->publish(global_EE_xyz_vel_msg);
+
+
+        std_msgs::msg::Float64MultiArray global_xyz_cmd_msg;
+        global_xyz_cmd_msg.data.push_back(global_xyz_cmd[0]);
+        global_xyz_cmd_msg.data.push_back(global_xyz_cmd[1]);
+        global_xyz_cmd_msg.data.push_back(global_xyz_cmd[2]);
+        global_xyz_cmd_msg.data.push_back(global_EE_yaw_cmd);
+        global_xyz_cmd_publisher_->publish(global_xyz_cmd_msg);
       }
 
 
@@ -336,7 +355,12 @@ su_fkik() : Node("su_fkik"),
     void cf_EE_position_IK() {
       //TODO: End Effector poisition, End Effector yaw command를 받아서 drone position, drone yaw command로 변환하기.
 
-      if (inverse_kinematics_Flag) global_xyz_cmd = global_EE_xyz_cmd - R_B * EE_offset_d;
+      R_B_cmd << cos(body_rpy_meas[2]), -sin(body_rpy_meas[2]), 0,
+                sin(body_rpy_meas[2]),   cos(body_rpy_meas[2]), 0,
+                0,                       0,                       1;
+
+
+      if (inverse_kinematics_Flag) global_xyz_cmd = global_EE_xyz_cmd - R_B_cmd * EE_offset_d;
       else global_xyz_cmd = global_EE_xyz_cmd;
     
       RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
@@ -352,6 +376,7 @@ su_fkik() : Node("su_fkik"),
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_vel_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_xyz_vel_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_xyz_cmd_publisher_;
     rclcpp::Publisher<crazyflie_interfaces::msg::Position>::SharedPtr cf_global_xyzYaw_publisher_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr cf_pose_subscriber_;
@@ -385,6 +410,8 @@ su_fkik() : Node("su_fkik"),
     Eigen::Vector3d global_xyz_vel_meas;
     Eigen::Vector3d body_xyz_vel_meas;
     Eigen::Matrix3d R_B;
+    Eigen::Matrix3d R_B_cmd;
+
 
     Eigen::Vector3d global_EE_xyz_meas;
     Eigen::Vector3d global_EE_xyz_vel_meas;
@@ -394,7 +421,6 @@ su_fkik() : Node("su_fkik"),
     Eigen::Vector3d global_xyz_cmd;
     double global_EE_yaw_cmd;
     double global_yaw_cmd;
-
 
 
     FilteredVector body_rpy_meas_dot_filter;
