@@ -30,7 +30,7 @@ su_fkik() : Node("su_fkik"),
    {
 
     EE_offset_d << 0.108, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
-    simulation_Flag = false;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
+    simulation_Flag = true;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
     inverse_kinematics_Flag = false;
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
@@ -111,13 +111,19 @@ su_fkik() : Node("su_fkik"),
       
       void simulation_numerical_calc()
       {
-        body_rpy_meas_dot_raw = (body_rpy_meas - body_rpy_meas_prev) / 0.03;
-        body_rpy_meas_dot = body_rpy_meas_dot_filter.apply(body_rpy_meas_dot_raw);
-        body_rpy_meas_prev = body_rpy_meas;
+          // MJ 현재 크레이지플라이 속도 데이터 및 각속도 데이터를 feedback 받을 수 없는 상황임.
+          // 임시방편으로 위치/자세 데이터를 기반으로 수치적으로 처리 하겠음
+          global_xyz_meas_dot_raw = (global_xyz_meas - global_xyz_meas_prev) / 0.03;
+          global_xyz_vel_meas = global_xyz_meas_dot_raw_filter.apply(global_xyz_meas_dot_raw);
+          global_xyz_meas_prev = global_xyz_meas;
 
-        body_omega_dot_raw = (body_omega_meas - body_omega_prev) / 0.03;
-        body_alpha_meas = body_omega_dot_filter.apply(body_omega_dot_raw);
-        body_omega_prev = body_omega_meas;
+          body_rpy_meas_dot_raw = (body_rpy_meas - body_rpy_meas_prev) / 0.03;
+          body_rpy_meas_dot = body_rpy_meas_dot_filter.apply(body_rpy_meas_dot_raw);
+          body_rpy_meas_prev = body_rpy_meas;
+    
+          body_omega_dot_raw = (body_omega_meas - body_omega_prev) / 0.03;
+          body_alpha_meas = body_omega_dot_filter.apply(body_omega_dot_raw);
+          body_omega_prev = body_omega_meas;
       }
 
       void hardware_numerical_calc()
@@ -277,7 +283,11 @@ su_fkik() : Node("su_fkik"),
                   R_B(i, j) = mat[i][j];
               }
           }
-      
+
+          
+      RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
+      global_xyz_meas[0], global_xyz_meas[1], global_xyz_meas[2], body_rpy_meas);
+
       }
       
     void cf_velocity_subscriber(const crazyflie_interfaces::msg::LogDataGeneric::SharedPtr msg) {

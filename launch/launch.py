@@ -31,24 +31,7 @@ def generate_launch_description():
             executable='trajectory_generator',
             output='screen',
         ),        
-        
-        # ros gz bridge!!
-	Node(
-	    package='ros_gz_bridge',
-	    executable='parameter_bridge',
-	    name='parameter_bridge',
-	    output='screen',
-	    parameters=[{
-		'config_file': os.path.join(
-		    get_package_share_directory('test_pkg'),
-		    'config',
-		    'ros_gz_bridge.yaml'
-		),
-		'use_sim_time': True
-	    }]
-	),
-
-
+                
         # rviz2 노드 실행
         Node(
             package='rviz2',
