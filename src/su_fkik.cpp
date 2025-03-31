@@ -363,8 +363,8 @@ su_fkik() : Node("su_fkik"),
       if (inverse_kinematics_Flag) global_xyz_cmd = global_EE_xyz_cmd - R_B_cmd * EE_offset_d;
       else global_xyz_cmd = global_EE_xyz_cmd;
     
-      RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
-      global_xyz_cmd[0], global_xyz_cmd[1], global_xyz_cmd[2], global_EE_yaw_cmd);
+      // RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
+      // global_xyz_cmd[0], global_xyz_cmd[1], global_xyz_cmd[2], global_EE_yaw_cmd);
     }
   
 

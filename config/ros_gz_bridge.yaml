@@ -1,0 +1,5 @@
+- ros_topic_name: "/EE_forcetorque"
+  gz_topic_name: "/EE_forcetorque"
+  ros_type_name: "geometry_msgs/msg/Wrench"
+  gz_type_name: "gz.msgs.Wrench"
+  direction: GZ_TO_ROS
