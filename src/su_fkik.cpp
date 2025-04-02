@@ -31,7 +31,7 @@ su_fkik() : Node("su_fkik"),
 
     EE_offset_d << 0.108, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
     simulation_Flag = true;  // MJ. True 하면 simulation mode, false 하면 하드웨어 모드로 구상
-    inverse_kinematics_Flag = false;
+    inverse_kinematics_Flag = true;
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
                                       .durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
