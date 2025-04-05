@@ -20,6 +20,33 @@ find_package(Eigen3 REQUIRED)  # Add Eigen3
 find_package(Curses REQUIRED)
 find_package(crazyflie_interfaces REQUIRED)  # 추가
 
+# Gazebo transport
+find_package(gz-msgs11 REQUIRED)
+find_package(gz-transport12 REQUIRED)
+
+add_executable(wrench_bridge src/gz_to_ros_wrench_bridge.cpp)
+
+ament_target_dependencies(wrench_bridge
+  rclcpp
+  geometry_msgs
+)
+
+target_include_directories(wrench_bridge PUBLIC
+  ${gz-msgs11_INCLUDE_DIRS}
+  ${gz-transport12_INCLUDE_DIRS}
+)
+
+target_link_libraries(wrench_bridge
+  ${gz-msgs11_LIBRARIES}
+  ${gz-transport12_LIBRARIES}
+)
+
+install(TARGETS wrench_bridge
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
+
 #SU_RVIZ
 add_executable(su_rviz src/su_rviz.cpp)
 ament_target_dependencies(su_rviz
