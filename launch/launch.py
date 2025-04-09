@@ -30,7 +30,14 @@ def generate_launch_description():
             package='test_pkg',
             executable='trajectory_generator',
             output='screen',
-        ),        
+        ),     
+        
+        # force topic bridge 노드 실행
+        Node(
+            package='test_pkg',
+            executable='wrench_bridge',
+            output='screen',
+        ),                   
                 
         # rviz2 노드 실행
         Node(

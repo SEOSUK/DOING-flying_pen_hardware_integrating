@@ -24,9 +24,9 @@ class su_fkik : public rclcpp::Node {
 public:
 su_fkik() : Node("su_fkik"),
     tf_broadcaster_(std::make_shared<tf2_ros::TransformBroadcaster>(this)),
-    body_rpy_meas_dot_filter(3, 3, 0.03), // LPF INIT
-    body_omega_dot_filter(3, 3, 0.03), // LPF INIT
-    global_xyz_meas_dot_raw_filter(3, 3, 0.03)    
+    body_rpy_meas_dot_filter(3, 1, 0.03), // LPF INIT
+    body_omega_dot_filter(3, 1, 0.03), // LPF INIT
+    global_xyz_meas_dot_raw_filter(3, 1, 0.03)    
    {
 
     EE_offset_d << 0.108, 0, 0; // MJ. EE_offset_d는 엔드이펙터의 길이 
@@ -76,6 +76,7 @@ su_fkik() : Node("su_fkik"),
           "/pen/EE_cmd_xyzYaw", qos_settings,
           std::bind(&su_fkik::global_EE_cmd_xyzYaw_subscriber, this, std::placeholders::_1));
 
+          
 
           control_loop_timer_ = this->create_wall_timer(
             10ms, std::bind(&su_fkik::control_loop_callback, this));
@@ -283,11 +284,6 @@ su_fkik() : Node("su_fkik"),
                   R_B(i, j) = mat[i][j];
               }
           }
-
-          
-      RCLCPP_INFO(this->get_logger(), "global_xyz_cmd [%lf] [%lf] [%lf] [%lf]", 
-      global_xyz_meas[0], global_xyz_meas[1], global_xyz_meas[2], body_rpy_meas);
-
       }
       
     void cf_velocity_subscriber(const crazyflie_interfaces::msg::LogDataGeneric::SharedPtr msg) {

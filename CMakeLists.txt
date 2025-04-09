@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(test_pkg)
 
+set(CMAKE_CXX_STANDARD 20)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -20,15 +22,26 @@ find_package(Eigen3 REQUIRED)  # Add Eigen3
 find_package(Curses REQUIRED)
 find_package(crazyflie_interfaces REQUIRED)  # 추가
 
+find_package(rosbag2_cpp REQUIRED)
+find_package(turtlesim REQUIRED)
+
+
 # Gazebo transport
 find_package(gz-msgs11 REQUIRED)
 find_package(gz-transport12 REQUIRED)
 
-add_executable(wrench_bridge src/gz_to_ros_wrench_bridge.cpp)
 
+
+# WRENCH_BRIDGE
+add_executable(wrench_bridge src/wrench_bridge.cpp src/ButterworthFilter.cpp)
 ament_target_dependencies(wrench_bridge
   rclcpp
   geometry_msgs
+)
+
+install(TARGETS 
+  wrench_bridge
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 target_include_directories(wrench_bridge PUBLIC
@@ -36,14 +49,11 @@ target_include_directories(wrench_bridge PUBLIC
   ${gz-transport12_INCLUDE_DIRS}
 )
 
-target_link_libraries(wrench_bridge
+target_link_libraries(wrench_bridge ButterworthFilter
   ${gz-msgs11_LIBRARIES}
   ${gz-transport12_LIBRARIES}
 )
 
-install(TARGETS wrench_bridge
-  DESTINATION lib/${PROJECT_NAME}
-)
 
 
 
@@ -162,6 +172,25 @@ target_include_directories(ButterworthFilter PUBLIC
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIR}
 )
+
+
+#DATA_LOGGING
+add_executable(data_logging src/data_logging.cpp)
+ament_target_dependencies(data_logging
+  rclcpp
+  rosbag2_cpp
+  geometry_msgs
+  std_msgs
+  turtlesim
+  crazyflie_interfaces
+)
+
+install(TARGETS
+  data_logging
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
 
 ###
 

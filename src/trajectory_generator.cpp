@@ -25,7 +25,7 @@ trajectory_generator()
   {
 
 
-      // QoS 설정a
+      // QoS 설정
       rclcpp::QoS qos_settings = rclcpp::QoS(rclcpp::KeepLast(10))
                                       .reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE)
                                       .durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
@@ -38,6 +38,7 @@ trajectory_generator()
       "keyboard_input", qos_settings,
       std::bind(&trajectory_generator::keyboard_subsciber_callback, this, std::placeholders::_1));
 
+    global_EE_des_xyzYaw_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_des_xyzYaw", qos_settings);
     global_EE_cmd_xyzYaw_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/pen/EE_cmd_xyzYaw", qos_settings);
 
       timer_ = this->create_wall_timer(
@@ -55,19 +56,29 @@ private:
     if (time_real < 5) init_hovering(); // 붕 뜨기
     // external wrench observer를 여기에 하는게 나을지 fkik쪽에 넣는게 나을지 보류
     surface_trajectory_generation();
+    admittance_control();
+
     data_publish();
   }
 
 
   void data_publish()
   {
+
+
+    std_msgs::msg::Float64MultiArray global_xyz_EE_des_msg;
+    global_xyz_EE_des_msg.data.push_back(global_des_xyzYaw[0]);
+    global_xyz_EE_des_msg.data.push_back(global_des_xyzYaw[1]);
+    global_xyz_EE_des_msg.data.push_back(global_des_xyzYaw[2]);
+    global_xyz_EE_des_msg.data.push_back(global_des_xyzYaw[3]);
+    global_EE_des_xyzYaw_publisher_->publish(global_xyz_EE_des_msg);
+
     std_msgs::msg::Float64MultiArray global_xyz_EE_cmd_msg;
     global_xyz_EE_cmd_msg.data.push_back(global_cmd_xyzYaw[0]);
     global_xyz_EE_cmd_msg.data.push_back(global_cmd_xyzYaw[1]);
     global_xyz_EE_cmd_msg.data.push_back(global_cmd_xyzYaw[2]);
     global_xyz_EE_cmd_msg.data.push_back(global_cmd_xyzYaw[3]);
     global_EE_cmd_xyzYaw_publisher_->publish(global_xyz_EE_cmd_msg);
-
 
   }
 
@@ -76,24 +87,34 @@ private:
 
   void init_hovering()
   {
-
-    if (time_real < 2) global_cmd_xyzYaw[2] = -0.05;
-    else if (time_real > 2 && time_real < 2.1) global_cmd_xyzYaw[2] = 0.1;
-    else if (time_real > 2.1 && time_real < 2.2) global_cmd_xyzYaw[2] = 0.2;
-    else if (time_real > 2.2 && time_real < 2.3) global_cmd_xyzYaw[2] = 0.3;
-    else if (time_real > 2.3 && time_real < 2.4) global_cmd_xyzYaw[2] = 0.4;
-  
-    if (time_real > 4.5 && time_real < 5) RCLCPP_INFO(this->get_logger(), "hovering done. ready to move");
+    
+    if (time_real < 2) global_des_xyzYaw[2] = -0.1;
+    else if (time_real > 2 && time_real < 4) global_des_vel_xyzYaw[2] = 0.3;
+    else if (time_real > 4.5 && time_real < 5) 
+    {
+      RCLCPP_INFO(this->get_logger(), "hovering done. ready to move");
+      global_des_vel_xyzYaw[2] = 0.0;    
+    }
+    RCLCPP_INFO(this->get_logger(), "z position: %lf", global_des_xyzYaw[2]);
   }
+
+  void admittance_control()
+  {
+    // v_des에서 v_cmd를 만들기.
+    // p_cmd += v_cmd * dt
+    // p_des += v_des * dt. 계산두번하게 하자.
+    global_cmd_vel_xyzYaw = global_des_vel_xyzYaw;
+  }
+
 
 
   void surface_trajectory_generation()
   {
-  //  TODO: 법선 프레임 기반 회전행렬 R_C 정의하고, 변환 실시
-  // 원래는 keyboard_subscriber_callback에서 contact_cmd_vel을 생성하게 두는게 낫겠지만, 일단 그냥 짜고 나중에 생각함
-  //  global_cmd_vel = R_C * contact_cmd_vel;
-  global_cmd_xyzYaw += global_cmd_vel_xyzYaw * sampling_time;
+    //p_cmd와 p_des를 모두 계산.
 
+  //  global_cmd_vel = R_C * contact_cmd_vel;
+  global_des_xyzYaw += global_des_vel_xyzYaw * sampling_time;
+  global_cmd_xyzYaw += global_cmd_vel_xyzYaw * sampling_time;
   }
 
 
@@ -107,54 +128,31 @@ private:
         {
             char input_char = input[0]; // 문자열의 첫 번째 문자만 사용
 
-            if (input_char == 'w')
-            {
-              global_cmd_vel_xyzYaw[0] += 0.1;
-            }
-            else if (input_char == 's')
-            {
-              global_cmd_vel_xyzYaw[0] -= 0.1;
-            }
-            else if (input_char == 'a')
-            {
-              global_cmd_vel_xyzYaw[1] += 0.1;
-            }
-            else if (input_char == 'd')
-            {
-              global_cmd_vel_xyzYaw[1] -= 0.1;
-            }
-            else if (input_char == 'e')
-            {
-              global_cmd_vel_xyzYaw[2] += 0.1;
-            }
-            else if (input_char == 'q')
-            {
-              global_cmd_vel_xyzYaw[2] -= 0.1;
-            }
-            else if (input_char == 'z')
-            {
-              global_cmd_vel_xyzYaw[3] += 0.1;
-            }
-            else if (input_char == 'c')
-            {
-              global_cmd_vel_xyzYaw[3] -= 0.1;
-            }
+            if (input_char == 'w') global_des_vel_xyzYaw[0] += 0.1;
+            else if (input_char == 's') global_des_vel_xyzYaw[0] -= 0.1;
+            else if (input_char == 'a') global_des_vel_xyzYaw[1] += 0.1;
+            else if (input_char == 'd') global_des_vel_xyzYaw[1] -= 0.1;
+            else if (input_char == 'e') global_des_vel_xyzYaw[2] += 0.1;
+            else if (input_char == 'q') global_des_vel_xyzYaw[2] -= 0.1;
+            else if (input_char == 'z') global_des_vel_xyzYaw[3] += 0.1;
+            else if (input_char == 'c') global_des_vel_xyzYaw[3] -= 0.1;
             else if (input_char == 'x')
             {
-              global_cmd_vel_xyzYaw[0] = 0;
-              global_cmd_vel_xyzYaw[1] = 0;
-              global_cmd_vel_xyzYaw[2] = 0;
-              global_cmd_vel_xyzYaw[3] = 0;
+              global_des_vel_xyzYaw[0] = 0;
+              global_des_vel_xyzYaw[1] = 0;
+              global_des_vel_xyzYaw[2] = 0;
+              global_des_vel_xyzYaw[3] = 0;
             }            
             else if (input_char == 'g')
             {
-              global_cmd_xyzYaw[2] = -1;
+              global_des_xyzYaw[2] = -1;
             }            
         }
 
     }
 
 
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_des_xyzYaw_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr global_EE_cmd_xyzYaw_publisher_;
 
 
@@ -165,6 +163,8 @@ private:
 
 
   size_t count_;
+  Eigen::VectorXd global_des_xyzYaw = Eigen::VectorXd::Zero(4);
+  Eigen::VectorXd global_des_vel_xyzYaw = Eigen::VectorXd::Zero(4);
   Eigen::VectorXd global_cmd_xyzYaw = Eigen::VectorXd::Zero(4);
   Eigen::VectorXd global_cmd_vel_xyzYaw = Eigen::VectorXd::Zero(4);
 
